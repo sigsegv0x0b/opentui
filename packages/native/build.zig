@@ -11,6 +11,9 @@ const SUPPORTED_ZIG_VERSIONS = [_]SupportedZigVersion{
     .{ .major = 0, .minor = 17, .patch = 0 },
 };
 
+// Populated once in build(); Android libraries need the NDK stub directory on the link path.
+var android_lib_dir: ?[]const u8 = null;
+
 const SupportedTarget = struct {
     zig_target: []const u8,
     output_name: []const u8,
@@ -27,6 +30,7 @@ const SUPPORTED_TARGETS = [_]SupportedTarget{
     .{ .zig_target = "aarch64-macos.13.0", .output_name = "aarch64-macos", .description = "macOS aarch64 (Apple Silicon)" },
     .{ .zig_target = "x86_64-windows-gnu", .output_name = "x86_64-windows", .description = "Windows x86_64" },
     .{ .zig_target = "aarch64-windows-gnu", .output_name = "aarch64-windows", .description = "Windows aarch64" },
+    .{ .zig_target = "aarch64-linux-android.28", .output_name = "aarch64-linux-android", .description = "Android aarch64" },
 };
 
 const DEFAULT_MACOS_SDK_PATH = "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk";
@@ -452,7 +456,8 @@ fn addNativeAudioDependencies(
         .macos => addMacOSSystemLibraries(b, module, macos_sdk_path.?),
         .linux => {
             module.linkSystemLibrary("dl", .{});
-            module.linkSystemLibrary("pthread", .{});
+            // Bionic keeps pthread symbols in libc; there is no libpthread stub.
+            if (!target.result.abi.isAndroid()) module.linkSystemLibrary("pthread", .{});
             module.linkSystemLibrary("m", .{});
         },
         else => {},
@@ -483,7 +488,7 @@ fn ghosttyVtAvailable(target: std.Build.ResolvedTarget) bool {
         else => return false,
     }
     return switch (target.result.os.tag) {
-        .linux => target.result.abi.isMusl() or target.result.abi == .gnu,
+        .linux => target.result.abi.isMusl() or target.result.abi == .gnu or target.result.abi.isAndroid(),
         .macos => true,
         .windows => target.result.abi == .gnu,
         else => false,
@@ -630,6 +635,7 @@ pub fn build(b: *std.Build) void {
     const target_option = b.option([]const u8, "library-target", "Build static/shared libraries for a specific target (e.g., 'x86_64-linux-gnu.2.17').");
     const build_all = b.option(bool, "all", "Build for all supported targets") orelse false;
     const gpa_safe_stats = b.option(bool, "gpa-safe-stats", "Enable GPA safety checks for trustworthy allocator stats") orelse false;
+    android_lib_dir = b.option([]const u8, "android-lib-dir", "Directory with the Android NDK stub libraries");
     require_video = b.option(bool, "require-video", "Fail when a target's FFmpeg prefix is missing instead of building without video") orelse false;
     const macos_sdk_path = resolveMacOSSDKPath(b);
     const build_options = b.addOptions();
@@ -984,6 +990,9 @@ fn createLibraries(
     });
     applyDependencies(b, module, optimize, target, build_options);
     addNativeAudioDependencies(b, module, target, macos_sdk_path);
+    if (target.result.abi.isAndroid()) {
+        if (android_lib_dir) |dir| module.addLibraryPath(.{ .cwd_relative = dir });
+    }
     addYogaDependencies(b, module, false);
     const shared = b.addLibrary(.{
         .name = LIB_NAME,

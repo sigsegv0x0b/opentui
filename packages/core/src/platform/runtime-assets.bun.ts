@@ -52,6 +52,12 @@ export async function resolveNativeLibraryPath(): Promise<string> {
     }
   }
 
+  if (process.platform === "android") {
+    if (process.arch === "arm64") {
+      return ((await import("@opentui/core-android-arm64" as string)) as NativePackageModule).default
+    }
+  }
+
   if (process.platform === "linux") {
     if (process.arch === "x64") {
       if (process.env.OPENTUI_LIBC === "musl") {

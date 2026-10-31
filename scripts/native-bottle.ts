@@ -52,6 +52,12 @@ const BOTTLE_LIBRARIES: ReadonlyArray<{
 }> = [
   { dir: "x86_64-linux", files: ["libopentui.so"], package: "core-linux-x64", symbols: "linux-x64" },
   { dir: "aarch64-linux", files: ["libopentui.so"], package: "core-linux-arm64", symbols: "linux-arm64" },
+  {
+    dir: "aarch64-linux-android",
+    files: ["libopentui.so"],
+    package: "core-android-arm64",
+    symbols: "android-arm64",
+  },
   { dir: "x86_64-linux-musl", files: ["libopentui.so"], package: "core-linux-x64-musl", symbols: "linux-x64-musl" },
   {
     dir: "aarch64-linux-musl",

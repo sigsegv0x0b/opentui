@@ -103,7 +103,7 @@ extern "c" fn pthread_peekjoin_np(thread: std.Thread.Handle, result: ?*?*anyopaq
 
 fn tryJoinThread(thread: std.Thread) bool {
     return switch (builtin.os.tag) {
-        .linux => switch (pthread_tryjoin_np(thread.getHandle(), null)) {
+        .linux => if (builtin.abi.isAndroid()) false else switch (pthread_tryjoin_np(thread.getHandle(), null)) {
             0 => true,
             @backingInt(std.posix.E.BUSY) => false,
             else => false,

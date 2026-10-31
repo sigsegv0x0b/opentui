@@ -19,7 +19,7 @@ type PointerSource = ArrayBufferLike | ArrayBufferView
 
 // Bun accepts numeric pointers only. Keep this type private so Bun's pointer
 // model does not leak into the exported surface.
-type BunPointer = number
+type BunPointer = number | bigint
 
 // These names match the Bun FFI type strings OpenTUI uses today. Other
 // backends map them at library load time instead of wrapping every native call.
@@ -199,6 +199,9 @@ const isBun =
   typeof process.versions === "object" &&
   process.versions !== null &&
   typeof process.versions.bun === "string"
+// Android allocators tag heap pointers in the top byte, so their 64-bit values
+// cannot be represented as a JavaScript number. Keep them as bigint.
+const isAndroid = typeof process !== "undefined" && process.platform === "android"
 export const usesBunFFI = isBun
 
 const requireModule = createRequire(import.meta.url)
@@ -222,7 +225,7 @@ function loadBackend(): FfiBackend {
 // Normalize foreign pointer-like values into the current runtime's pointer
 // representation before passing them to native code.
 export function toPointer(value: PointerInput): Pointer {
-  if (isBun && typeof value === "bigint") {
+  if (isBun && typeof value === "bigint" && !isAndroid) {
     return toSafeNumberPointer(value) as Pointer
   }
 
@@ -325,7 +328,7 @@ function normalizeBunDefinition(definition: FFIFunction): BunFFIFunction {
 
 // Convert Pointer pointers to Bun pointers at the Bun boundary only.
 function toBunPointer(pointer: Pointer): BunPointer {
-  return typeof pointer === "bigint" ? toSafeNumberPointer(pointer) : pointer
+  return typeof pointer === "bigint" && !isAndroid ? toSafeNumberPointer(pointer) : pointer
 }
 
 // Create a Bun backend from bun:ffi.
